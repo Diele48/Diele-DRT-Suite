@@ -82,15 +82,168 @@ f_extend() =>
 // MODULES
 //=============================================================================
 
-//-----------------------------------------------------------------------------
+//=============================================================================
 // HTF ENGINE
-//-----------------------------------------------------------------------------
+//=============================================================================
 
-// (Commit #2)
+// Detect start van nieuwe HTF candle
+bool newHTF = ta.change(time(htf)) != 0
 
-//-----------------------------------------------------------------------------
+// Live HTF waarden
+var float htfOpen = na
+var float htfHigh = na
+var float htfLow  = na
+var float htfMid  = na
+
+// Bar waar niveau ontstond
+var int htfOpenBar = na
+var int htfHighBar = na
+var int htfLowBar  = na
+
+// Initialisatie
+if barstate.isfirst
+    htfOpen := open
+    htfHigh := high
+    htfLow  := low
+
+    htfOpenBar := bar_index
+    htfHighBar := bar_index
+    htfLowBar  := bar_index
+
+// Nieuwe HTF candle
+if newHTF
+
+    htfOpen := open
+    htfHigh := high
+    htfLow := low
+
+    htfOpenBar := bar_index
+    htfHighBar := bar_index
+    htfLowBar := bar_index
+
+// Live update High
+if high > htfHigh
+    htfHigh := high
+    htfHighBar := bar_index
+
+// Live update Low
+if low < htfLow
+    htfLow := low
+    htfLowBar := bar_index
+
+// Midpoint
+htfMid := (htfHigh + htfLow) * 0.5
+
+// Candles binnen HTF
+int barsPerHTF = int(math.round(
+     timeframe.in_seconds(htf) /
+     timeframe.in_seconds(timeframe.period)))
+
+var int htfBar = 1
+
+if newHTF
+    htfBar := 1
+else
+    htfBar += 1
+
+// C1-C4
+var int cPhase = 1
+
+if newHTF
+    cPhase := cPhase == 4 ? 1 : cPhase + 1
+
+//=============================================================================
 // DRAWING ENGINE
-//-----------------------------------------------------------------------------
+//=============================================================================
+
+if showLevels
+
+    //=========================
+    // HIGH
+    //=========================
+
+    if na(lineHigh)
+        lineHigh := line.new(
+             x1 = htfHighBar,
+             y1 = htfHigh,
+             x2 = bar_index,
+             y2 = htfHigh,
+             color = clrHigh,
+             width = lineWidth,
+             extend = f_extend())
+    else
+        line.set_xy1(lineHigh, htfHighBar, htfHigh)
+        line.set_xy2(lineHigh, bar_index, htfHigh)
+
+    //=========================
+    // LOW
+    //=========================
+
+    if na(lineLow)
+        lineLow := line.new(
+             x1 = htfLowBar,
+             y1 = htfLow,
+             x2 = bar_index,
+             y2 = htfLow,
+             color = clrLow,
+             width = lineWidth,
+             extend = f_extend())
+    else
+        line.set_xy1(lineLow, htfLowBar, htfLow)
+        line.set_xy2(lineLow, bar_index, htfLow)
+
+    //=========================
+    // OPEN
+    //=========================
+
+    if na(lineOpen)
+        lineOpen := line.new(
+             x1 = htfOpenBar,
+             y1 = htfOpen,
+             x2 = bar_index,
+             y2 = htfOpen,
+             color = clrOpen,
+             width = lineWidth,
+             extend = f_extend())
+    else
+        line.set_xy1(lineOpen, htfOpenBar, htfOpen)
+        line.set_xy2(lineOpen, bar_index, htfOpen)
+
+    //=========================
+    // MID
+    //=========================
+
+    if na(lineMid)
+        lineMid := line.new(
+             x1 = htfOpenBar,
+             y1 = htfMid,
+             x2 = bar_index,
+             y2 = htfMid,
+             color = clrMid,
+             style = line.style_dashed,
+             width = 1,
+             extend = f_extend())
+    else
+        line.set_xy1(lineMid, htfOpenBar, htfMid)
+        line.set_xy2(lineMid, bar_index, htfMid)
+
+else
+
+    if not na(lineHigh)
+        line.delete(lineHigh)
+        lineHigh := na
+
+    if not na(lineLow)
+        line.delete(lineLow)
+        lineLow := na
+
+    if not na(lineOpen)
+        line.delete(lineOpen)
+        lineOpen := na
+
+    if not na(lineMid)
+        line.delete(lineMid)
+        lineMid := na
 
 // (Commit #3)
 
