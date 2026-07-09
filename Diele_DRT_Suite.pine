@@ -37,6 +37,8 @@ groupGeneral = "General"
 
 htf = input.timeframe("60", "Higher Timeframe", group = groupGeneral)
 
+showLabels = input.bool(true, "Show Level Labels", group = groupDisplay)
+
 groupDisplay = "Display"
 
 showLevels     = input.bool(true, "HTF Levels", group = groupDisplay)
@@ -57,8 +59,6 @@ showMid = input.bool(
      "Show Mid",
      group = groupStyle)
 
-extendLevels = input.bool(true, "Extend Levels", group = groupStyle)
-
 lineWidth = input.int(
      2,
      "Line Width",
@@ -75,10 +75,10 @@ levelLength = input.int(
 
 groupColors = "Colors"
 
-clrHigh = input.color(color.lime, "High", group = groupColors)
-clrLow = input.color(color.red, "Low", group = groupColors)
-clrOpen = input.color(color.orange, "Open", group = groupColors)
-clrMid = input.color(color.aqua, "Mid", group = groupColors)
+clrHigh = input.color(color.rgb(34,139,34), "CR High", group=groupColors)
+clrLow  = input.color(color.rgb(178,34,34), "CR Low", group=groupColors)
+clrOpen = input.color(color.rgb(218,165,32), "Open", group=groupColors)
+clrMid  = input.color(color.rgb(70,130,180), "Mid", group=groupColors)
 
 //=============================================================================
 // GLOBAL OBJECTS
@@ -102,8 +102,6 @@ var label lblMid  = na
 // HELPER FUNCTIONS
 //=============================================================================
 
-f_extend() =>
-    extendLevels ? extend.right : extend.none
 
 //=============================================================================
 // MODULES
@@ -162,9 +160,6 @@ if low <= htfLow
 htfMid := (htfHigh + htfLow) * 0.5
 
 // Candles binnen HTF
-int barsPerHTF = int(math.round(
-     timeframe.in_seconds(htf) /
-     timeframe.in_seconds(timeframe.period)))
 
 var int htfBar = 1
 
@@ -178,7 +173,7 @@ var int cPhase = 1
 
 if newHTF
     cPhase := cPhase == 4 ? 1 : cPhase + 1
-var float htfClose = na
+
 //=============================================================================
 // DRAW HELPERS
 //=============================================================================
@@ -281,14 +276,14 @@ if showLevels
          lblHigh,
          htfHighBar + levelLength,
          htfHigh,
-         "CR High",
+         "crHigh",
          clrHigh)
 
     lblLow := f_drawLabel(
          lblLow,
          htfLowBar + levelLength,
          htfLow,
-         "CR Low",
+         "crLow",
          clrLow)
 
     if showOpen
@@ -397,8 +392,8 @@ if showVerticals and newHTF
          low - ta.atr(14) * 5,
          bar_index,
          high + ta.atr(14) * 5,
-         color = color.new(color.gray, 80),
-         style = line.style_dotted,
+         color.new(color.gray, 88)
+         style=line.style_dashed
          width = 1)
 
 
