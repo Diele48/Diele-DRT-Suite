@@ -47,6 +47,16 @@ showCycle      = input.bool(true, "C1-C4", group = groupDisplay)
 
 groupStyle = "Style"
 
+showOpen = input.bool(
+     false,
+     "Show Open",
+     group = groupStyle)
+
+showMid = input.bool(
+     false,
+     "Show Mid",
+     group = groupStyle)
+
 extendLevels = input.bool(true, "Extend Levels", group = groupStyle)
 
 lineWidth = input.int(
@@ -170,89 +180,78 @@ if newHTF
     cPhase := cPhase == 4 ? 1 : cPhase + 1
 var float htfClose = na
 //=============================================================================
+// DRAW HELPERS
+//=============================================================================
+
+f_drawLevel(_line, _x1, _price, _color, _width) =>
+
+    line l = _line
+
+    int x2 = _x1 + levelLength
+
+    if na(l)
+        l := line.new(
+             x1 = _x1,
+             y1 = _price,
+             x2 = x2,
+             y2 = _price,
+             color = _color,
+             width = _width)
+
+    else
+        line.set_xy1(l, _x1, _price)
+        line.set_xy2(l, x2, _price)
+        line.set_color(l, _color)
+        line.set_width(l, _width)
+
+    l
+//=============================================================================
 // DRAWING ENGINE
 //=============================================================================
 
 if showLevels
 
-    //=========================
-    // HIGH
-    //=========================
+    // CR High
+    lineHigh := f_drawLevel(
+         lineHigh,
+         htfHighBar,
+         htfHigh,
+         clrHigh,
+         lineWidth)
 
-    if na(lineHigh)
-        lineHigh := line.new(
-             x1 = htfHighBar,
-             y1 = htfHigh,
-             x2 = bar_index,
-             y2 = htfHigh,
-             color = clrHigh,
-             width = lineWidth,
-             extend = f_extend())
+    // CR Low
+    lineLow := f_drawLevel(
+         lineLow,
+         htfLowBar,
+         htfLow,
+         clrLow,
+         lineWidth)
+
+    // Open
+    if showOpen
+        lineOpen := f_drawLevel(
+             lineOpen,
+             htfOpenBar,
+             htfOpen,
+             clrOpen,
+             lineWidth)
     else
-        line.set_xy1(lineHigh, htfHighBar, htfHigh)
-        line.set_xy2(
-     lineHigh,
-     htfHighBar + levelLength,
-     htfHigh)
+        if not na(lineOpen)
+            line.delete(lineOpen)
+            lineOpen := na
 
-    //=========================
-    // LOW
-    //=========================
-
-    if na(lineLow)
-        lineLow := line.new(
-             x1 = htfLowBar,
-             y1 = htfLow,
-             x2 = bar_index,
-             y2 = htfLow,
-             color = clrLow,
-             width = lineWidth,
-             extend = f_extend())
+    // Mid
+    if showMid
+        lineMid := f_drawLevel(
+             lineMid,
+             htfOpenBar,
+             htfMid,
+             clrMid,
+             1)
     else
-        line.set_xy1(lineLow, htfLowBar, htfLow)
-       line.set_xy2(
-     lineLow,
-     htfLowBar + levelLength,
-     htfLow)
-    //=========================
-    // OPEN
-    //=========================
-
-    if na(lineOpen)
-        lineOpen := line.new(
-             x1 = htfOpenBar,
-             y1 = htfOpen,
-             x2 = bar_index,
-             y2 = htfOpen,
-             color = clrOpen,
-             width = lineWidth,
-             extend = f_extend())
-    else
-        line.set_xy1(lineOpen, htfOpenBar, htfOpen)
-       line.set_xy2(
-     lineOpen,
-     htfOpenBar + levelLength,
-     htfOpen)
-    //=========================
-    // MID
-    //=========================
-
-    if na(lineMid)
-        lineMid := line.new(
-             x1 = htfOpenBar,
-             y1 = htfMid,
-             x2 = bar_index,
-             y2 = htfMid,
-             color = clrMid,
-             style = line.style_dashed,
-             width = 1,
-             extend = f_extend())
-    else
-        line.set_xy1(lineMid, htfOpenBar, htfMid)
-      line.set_xy2(
-     lineMid,
-     htfOpenBar + levelLength,
-     htfMid)
+        if not na(lineMid)
+            line.delete(lineMid)
+            lineMid := na
 
 else
 
@@ -271,82 +270,122 @@ else
     if not na(lineMid)
         line.delete(lineMid)
         lineMid := na
+
 //=============================================================================
 // LEVEL LABELS
 //=============================================================================
 
 if showLevels
 
-    // HIGH
-    if na(lblHigh)
-        lblHigh := label.new(
-             htfHighBar + levelLength + 1,
-             htfHigh,
-             "crHigh",
-             style = label.style_none,
-             textcolor = clrHigh,
-             size = size.small)
-    else
-        label.set_xy(lblHigh, htfHighBar, htfHigh)
-        label.set_text(lblHigh, "H")
+    lblHigh := f_drawLabel(
+         lblHigh,
+         htfHighBar + levelLength,
+         htfHigh,
+         "CR High",
+         clrHigh)
 
-    // LOW
-    if na(lblLow)
-        lblLow := label.new(
-             htfLowBar + levelLength + 1,
-             htfLow,
-             "crLow",
-             style = label.style_none,
-             textcolor = clrLow,
-             size = size.small)
-    else
-        label.set_xy(lblLow, htfLowBar, htfLow)
-        label.set_text(lblLow, "L")
+    lblLow := f_drawLabel(
+         lblLow,
+         htfLowBar + levelLength,
+         htfLow,
+         "CR Low",
+         clrLow)
 
-    // OPEN
-    if na(lblOpen)
-        lblOpen := label.new(
-             htfOpenBar + levelLength + 1,
+    if showOpen
+
+        lblOpen := f_drawLabel(
+             lblOpen,
+             htfOpenBar + levelLength,
              htfOpen,
-             "O",
-             style = label.style_none,
-             textcolor = clrOpen,
-             size = size.small)
-    else
-        label.set_xy(lblOpen, htfOpenBar, htfOpen)
-        label.set_text(lblOpen, "O")
+             "Open",
+             clrOpen)
 
-    // MID
-    if na(lblMid)
-        lblMid := label.new(
-             htfOpenBar + levelLength + 1,
-             htfMid,
-             "M",
-             style = label.style_none,
-             textcolor = clrMid,
-             size = size.small)
     else
-        label.set_xy(lblMid, htfOpenBar, htfMid)
-        label.set_text(lblMid, "M")
+
+        if not na(lblOpen)
+
+            label.delete(lblOpen)
+
+            lblOpen := na
+
+    if showMid
+
+        lblMid := f_drawLabel(
+             lblMid,
+             htfOpenBar + levelLength,
+             htfMid,
+             "Mid",
+             clrMid)
+
+    else
+
+        if not na(lblMid)
+
+            label.delete(lblMid)
+
+            lblMid := na
 
 else
 
     if not na(lblHigh)
+
         label.delete(lblHigh)
+
         lblHigh := na
 
     if not na(lblLow)
+
         label.delete(lblLow)
+
         lblLow := na
 
     if not na(lblOpen)
+
         label.delete(lblOpen)
+
         lblOpen := na
 
     if not na(lblMid)
-        label.delete(lblMid)
-        lblMid := na
 
+        label.delete(lblMid)
+
+        lblMid := na
+//=============================================================================
+// LABEL HELPER
+//=============================================================================
+
+f_drawLabel(_label, _x, _price, _text, _color) =>
+
+    label lb = _label
+
+    int labelOffset = 2
+
+    if na(lb)
+
+        lb := label.new(
+             x = _x + labelOffset,
+             y = _price,
+             text = _text,
+             style = label.style_none,
+             textcolor = _color,
+             size = size.small)
+
+    else
+
+        label.set_xy(
+             lb,
+             _x + labelOffset,
+             _price)
+
+        label.set_text(
+             lb,
+             _text)
+
+        label.set_textcolor(
+             lb,
+             _color)
+
+    lb
 //=============================================================================
 // HTF SEPARATORS
 //=============================================================================
