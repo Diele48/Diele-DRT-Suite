@@ -1,24 +1,8 @@
 //@version=5
 //=============================================================================
-//  Diele DRT Suite
-//-----------------------------------------------------------------------------
-//  Version : 1.0.0
-//  Build   : 001
-//
-//  Author  : Diele48
-//
-//  Roadmap
-//  --------
-//  [x] Framework
-//  [ ] HTF Engine
-//  [ ] Drawing Engine
-//  [ ] Dashboard
-//  [ ] Sessions
-//  [ ] Liquidity
-//  [ ] Structure
-//  [ ] Smart Money
-//  [ ] Entries
-//
+// DIELE DRT SUITE
+// Version : 1.0.1-alpha
+// Part    : 1A
 //=============================================================================
 
 indicator(
@@ -35,17 +19,32 @@ indicator(
 
 groupGeneral = "General"
 
-htf = input.timeframe("60", "Higher Timeframe", group = groupGeneral)
-
-showLabels = input.bool(true, "Show Level Labels", group = groupDisplay)
+htf = input.timeframe(
+     "60",
+     "Higher Timeframe",
+     group = groupGeneral)
 
 groupDisplay = "Display"
 
-showLevels     = input.bool(true, "HTF Levels", group = groupDisplay)
-showDashboard  = input.bool(true, "Dashboard", group = groupDisplay)
-showVerticals  = input.bool(true, "Vertical Lines", group = groupDisplay)
-showCounter    = input.bool(true, "Counter", group = groupDisplay)
-showCycle      = input.bool(true, "C1-C4", group = groupDisplay)
+showLevels = input.bool(
+     true,
+     "Show Levels",
+     group = groupDisplay)
+
+showLabels = input.bool(
+     true,
+     "Show Labels",
+     group = groupDisplay)
+
+showVerticals = input.bool(
+     true,
+     "Show HTF Separators",
+     group = groupDisplay)
+
+showDashboard = input.bool(
+     true,
+     "Dashboard",
+     group = groupDisplay)
 
 groupStyle = "Style"
 
@@ -59,6 +58,13 @@ showMid = input.bool(
      "Show Mid",
      group = groupStyle)
 
+levelLength = input.int(
+     15,
+     "Level Length",
+     minval = 5,
+     maxval = 50,
+     group = groupStyle)
+
 lineWidth = input.int(
      2,
      "Line Width",
@@ -66,19 +72,27 @@ lineWidth = input.int(
      maxval = 4,
      group = groupStyle)
 
-levelLength = input.int(
-     15,
-     "Level Length (bars)",
-     minval = 5,
-     maxval = 100,
-     group = groupStyle)
-
 groupColors = "Colors"
 
-clrHigh = input.color(color.rgb(34,139,34), "CR High", group=groupColors)
-clrLow  = input.color(color.rgb(178,34,34), "CR Low", group=groupColors)
-clrOpen = input.color(color.rgb(218,165,32), "Open", group=groupColors)
-clrMid  = input.color(color.rgb(70,130,180), "Mid", group=groupColors)
+clrHigh = input.color(
+     color.rgb(34,139,34),
+     "CR High",
+     group = groupColors)
+
+clrLow = input.color(
+     color.rgb(178,34,34),
+     "CR Low",
+     group = groupColors)
+
+clrOpen = input.color(
+     color.rgb(218,165,32),
+     "Open",
+     group = groupColors)
+
+clrMid = input.color(
+     color.rgb(70,130,180),
+     "Mid",
+     group = groupColors)
 
 //=============================================================================
 // GLOBAL OBJECTS
@@ -88,91 +102,198 @@ var line lineHigh = na
 var line lineLow = na
 var line lineOpen = na
 var line lineMid = na
-var line lineVertical = na
 
-var label lblDashboard = na
-var label lblCounter = na
-var label lblCycle = na
 var label lblHigh = na
-var label lblLow  = na
+var label lblLow = na
 var label lblOpen = na
-var label lblMid  = na
+var label lblMid = na
 
 //=============================================================================
-// HELPER FUNCTIONS
+// CRT ENGINE
 //=============================================================================
 
+enum CRTState
+    WaitingC1
+    WaitingC2
+    Active
+
+enum CRTDirection
+    None
+    Bullish
+    Bearish
+
+var CRTState crtState = CRTState.WaitingC1
+var CRTDirection crtDirection = CRTDirection.None
+
+//-------------------------
+// Reference Candle (C1)
+//-------------------------
+
+var float c1Open  = na
+var float c1High  = na
+var float c1Low   = na
+var float c1Close = na
+
+var int c1Bar = na
+
+//-------------------------
+// Active CRT
+//-------------------------
+
+var float crHigh = na
+var float crLow  = na
+
+var int crHighBar = na
+var int crLowBar  = na
+
+//-------------------------
+// Sweep info
+//-------------------------
+
+var bool bullSweep = false
+var bool bearSweep = false
+
+//-------------------------
+// New HTF candle
+//-------------------------
+
+newHour = ta.change(time(htf))
 
 //=============================================================================
-// MODULES
+// HOUR BUFFER
 //=============================================================================
 
+type HourCandle
+    float open
+    float high
+    float low
+    float close
+
+    int startBar
+    int highBar
+    int lowBar
+
+var HourCandle previousHour = HourCandle.new(na, na, na, na, na)
+var HourCandle currentHour  = HourCandle.new(na, na, na, na, na)
+
+newHour = ta.change(time(htf)) != 0
+
+var int currentHighBar = na
+var int currentLowBar = na
+
+if newHour
+
+    currentHighBar := bar_index
+    currentLowBar := bar_index
+
+    // Bewaar de zojuist gesloten HTF candle
+    previousHour := HourCandle.new(
+         request.security(syminfo.tickerid, htf, open[1]),
+         request.security(syminfo.tickerid, htf, high[1]),
+         request.security(syminfo.tickerid, htf, low[1]),
+         request.security(syminfo.tickerid, htf, close[1]),
+         bar_index)
+
+    // Start nieuwe HTF candle
+    currentHour := HourCandle.new(
+         request.security(syminfo.tickerid, htf, open),
+         request.security(syminfo.tickerid, htf, high),
+         request.security(syminfo.tickerid, htf, low),
+         request.security(syminfo.tickerid, htf, close),
+         bar_index)
 //=============================================================================
-// HTF ENGINE
+// CRT STATE MACHINE
 //=============================================================================
 
-// Detect start van nieuwe HTF candle
-bool newHTF = ta.change(time(htf)) != 0
+if newHour
 
-// Live HTF waarden
-var float htfOpen = na
-var float htfHigh = na
-var float htfLow  = na
-var float htfMid  = na
+    switch crtState
 
-// Bar waar niveau ontstond
-var int htfOpenBar = na
-var int htfHighBar = na
-var int htfLowBar  = na
+        //------------------------------------------------------------
+        // WAITING FOR C1
+        //------------------------------------------------------------
 
-// Initialisatie
-if barstate.isfirst
-    htfOpen := open
-    htfHigh := high
-    htfLow  := low
+        CRTState.WaitingC1 =>
 
-    htfOpenBar := bar_index
-    htfHighBar := bar_index
-    htfLowBar  := bar_index
+            c1Open  := request.security(syminfo.tickerid, htf, open[1])
+            c1High  := request.security(syminfo.tickerid, htf, high[1])
+            c1Low   := request.security(syminfo.tickerid, htf, low[1])
+            c1Close := request.security(syminfo.tickerid, htf, close[1])
 
-// Nieuwe HTF candle
-if newHTF
+            c1Bar := bar_index
 
-    htfOpen := open
-    htfHigh := high
-    htfLow := low
+            bullSweep := false
+            bearSweep := false
 
-    htfOpenBar := bar_index
-    htfHighBar := bar_index
-    htfLowBar := bar_index
+            crtDirection := CRTDirection.None
 
-// Live update High
-if high >= htfHigh
-    htfHigh := high
-    htfHighBar := bar_index
+            crtState := CRTState.WaitingC2
 
-// Live update Low
-if low <= htfLow
-    htfLow := low
-    htfLowBar := bar_index
+        //------------------------------------------------------------
+        // WAITING FOR C2
+        //------------------------------------------------------------
 
-// Midpoint
-htfMid := (htfHigh + htfLow) * 0.5
+        CRTState.WaitingC2 =>
 
-// Candles binnen HTF
+            float c2High =
+                 request.security(syminfo.tickerid, htf, high[1])
 
-var int htfBar = 1
+            float c2Low =
+                 request.security(syminfo.tickerid, htf, low[1])
 
-if newHTF
-    htfBar := 1
-else
-    htfBar += 1
+            float c2Close =
+                 request.security(syminfo.tickerid, htf, close[1])
 
-// C1-C4
-var int cPhase = 1
+            bullSweep := c2Low < c1Low
+            bearSweep := c2High > c1High
 
-if newHTF
-    cPhase := cPhase == 4 ? 1 : cPhase + 1
+            bool closeInside =
+                 c2Close <= c1High and
+                 c2Close >= c1Low
+
+            if closeInside
+
+                crHigh := c1High
+                crLow := c1Low
+
+                crHighBar := c1Bar
+                crLowBar := c1Bar
+
+                if bullSweep
+                    crtDirection := CRTDirection.Bullish
+
+                if bearSweep
+                    crtDirection := CRTDirection.Bearish
+
+                crtState := CRTState.Active
+
+            else
+
+                crtState := CRTState.WaitingC1
+
+        //------------------------------------------------------------
+        // ACTIVE CRT
+        //------------------------------------------------------------
+
+        CRTState.Active =>
+
+            float currentClose =
+                 request.security(syminfo.tickerid, htf, close)
+
+            if currentClose > crHigh or currentClose < crLow
+
+                crtState := CRTState.WaitingC1
+
+                crtDirection := CRTDirection.None
+
+                bullSweep := false
+                bearSweep := false
+
+                crHigh := na
+                crLow := na
+
+                crHighBar := na
+                crLowBar := na
 
 //=============================================================================
 // DRAW HELPERS
@@ -185,6 +306,7 @@ f_drawLevel(_line, _x1, _price, _color, _width) =>
     int x2 = _x1 + levelLength
 
     if na(l)
+
         l := line.new(
              x1 = _x1,
              y1 = _price,
@@ -194,19 +316,68 @@ f_drawLevel(_line, _x1, _price, _color, _width) =>
              width = _width)
 
     else
-        line.set_xy1(l, _x1, _price)
-        line.set_xy2(l, x2, _price)
-        line.set_color(l, _color)
-        line.set_width(l, _width)
+
+        line.set_xy1(
+             l,
+             _x1,
+             _price)
+
+        line.set_xy2(
+             l,
+             x2,
+             _price)
+
+        line.set_color(
+             l,
+             _color)
+
+        line.set_width(
+             l,
+             _width)
 
     l
+
+f_drawLabel(_label, _x, _price, _text, _color) =>
+
+    label lb = _label
+
+    if na(lb)
+
+        lb := label.new(
+             x = _x + 2,
+             y = _price,
+             text = _text,
+             style = label.style_none,
+             textcolor = _color,
+             size = size.small)
+
+    else
+
+        label.set_xy(
+             lb,
+             _x + 2,
+             _price)
+
+        label.set_text(
+             lb,
+             _text)
+
+        label.set_textcolor(
+             lb,
+             _color)
+
+    lb
+
 //=============================================================================
 // DRAWING ENGINE
 //=============================================================================
 
 if showLevels
 
-    // CR High
+    //────────────────────────────
+    // CR HIGH
+    //────────────────────────────
+
     lineHigh := f_drawLevel(
          lineHigh,
          htfHighBar,
@@ -214,7 +385,22 @@ if showLevels
          clrHigh,
          lineWidth)
 
-    // CR Low
+    if showLabels
+        lblHigh := f_drawLabel(
+             lblHigh,
+             htfHighBar + levelLength,
+             htfHigh,
+             "CR High",
+             clrHigh)
+    else
+        if not na(lblHigh)
+            label.delete(lblHigh)
+            lblHigh := na
+
+    //────────────────────────────
+    // CR LOW
+    //────────────────────────────
+
     lineLow := f_drawLevel(
          lineLow,
          htfLowBar,
@@ -222,31 +408,79 @@ if showLevels
          clrLow,
          lineWidth)
 
-    // Open
+    if showLabels
+        lblLow := f_drawLabel(
+             lblLow,
+             htfLowBar + levelLength,
+             htfLow,
+             "CR Low",
+             clrLow)
+    else
+        if not na(lblLow)
+            label.delete(lblLow)
+            lblLow := na
+
+    //────────────────────────────
+    // OPEN
+    //────────────────────────────
+
     if showOpen
+
         lineOpen := f_drawLevel(
              lineOpen,
              htfOpenBar,
              htfOpen,
              clrOpen,
-             lineWidth)
+             1)
+
+        if showLabels
+            lblOpen := f_drawLabel(
+                 lblOpen,
+                 htfOpenBar + levelLength,
+                 htfOpen,
+                 "Open",
+                 clrOpen)
+
     else
+
         if not na(lineOpen)
             line.delete(lineOpen)
             lineOpen := na
 
-    // Mid
+        if not na(lblOpen)
+            label.delete(lblOpen)
+            lblOpen := na
+
+    //────────────────────────────
+    // MID
+    //────────────────────────────
+
     if showMid
+
         lineMid := f_drawLevel(
              lineMid,
              htfOpenBar,
              htfMid,
              clrMid,
              1)
+
+        if showLabels
+            lblMid := f_drawLabel(
+                 lblMid,
+                 htfOpenBar + levelLength,
+                 htfMid,
+                 "Mid",
+                 clrMid)
+
     else
+
         if not na(lineMid)
             line.delete(lineMid)
             lineMid := na
+
+        if not na(lblMid)
+            label.delete(lblMid)
+            lblMid := na
 
 else
 
@@ -266,145 +500,27 @@ else
         line.delete(lineMid)
         lineMid := na
 
-//=============================================================================
-// LEVEL LABELS
-//=============================================================================
-
-if showLevels
-
-    lblHigh := f_drawLabel(
-         lblHigh,
-         htfHighBar + levelLength,
-         htfHigh,
-         "crHigh",
-         clrHigh)
-
-    lblLow := f_drawLabel(
-         lblLow,
-         htfLowBar + levelLength,
-         htfLow,
-         "crLow",
-         clrLow)
-
-    if showOpen
-
-        lblOpen := f_drawLabel(
-             lblOpen,
-             htfOpenBar + levelLength,
-             htfOpen,
-             "Open",
-             clrOpen)
-
-    else
-
-        if not na(lblOpen)
-
-            label.delete(lblOpen)
-
-            lblOpen := na
-
-    if showMid
-
-        lblMid := f_drawLabel(
-             lblMid,
-             htfOpenBar + levelLength,
-             htfMid,
-             "Mid",
-             clrMid)
-
-    else
-
-        if not na(lblMid)
-
-            label.delete(lblMid)
-
-            lblMid := na
-
-else
-
     if not na(lblHigh)
-
         label.delete(lblHigh)
-
         lblHigh := na
 
     if not na(lblLow)
-
         label.delete(lblLow)
-
         lblLow := na
 
     if not na(lblOpen)
-
         label.delete(lblOpen)
-
         lblOpen := na
 
     if not na(lblMid)
-
         label.delete(lblMid)
-
         lblMid := na
+
+
 //=============================================================================
-// LABEL HELPER
-//=============================================================================
-
-f_drawLabel(_label, _x, _price, _text, _color) =>
-
-    label lb = _label
-
-    int labelOffset = 2
-
-    if na(lb)
-
-        lb := label.new(
-             x = _x + labelOffset,
-             y = _price,
-             text = _text,
-             style = label.style_none,
-             textcolor = _color,
-             size = size.small)
-
-    else
-
-        label.set_xy(
-             lb,
-             _x + labelOffset,
-             _price)
-
-        label.set_text(
-             lb,
-             _text)
-
-        label.set_textcolor(
-             lb,
-             _color)
-
-    lb
-//=============================================================================
-// HTF SEPARATORS
+// KEEP SCRIPT VALID
 //=============================================================================
 
-if showVerticals and newHTF
-
-    line.new(
-         bar_index,
-         low - ta.atr(14) * 5,
-         bar_index,
-         high + ta.atr(14) * 5,
-         color.new(color.gray, 88)
-         style=line.style_dashed
-         width = 1)
-
-
-//-----------------------------------------------------------------------------
-// DASHBOARD
-//-----------------------------------------------------------------------------
-
-// (Commit #4)
-
-//-----------------------------------------------------------------------------
-// KEEP INDICATOR VALID
-//-----------------------------------------------------------------------------
+plot(close, display = display.none)
 
 plot(na)
