@@ -1,0 +1,126 @@
+//══════════════════════════════════════════════════════════════════════════════
+// DIELE DRT SUITE
+// HTF ENGINE v1.0
+//══════════════════════════════════════════════════════════════════════════════
+
+//──────────────────────────────────────────────────────────────────────────────
+// INPUT
+//──────────────────────────────────────────────────────────────────────────────
+
+groupHTF = "HTF Engine"
+
+htf = input.timeframe(
+     "60",
+     "Higher Timeframe",
+     group = groupHTF)
+
+//──────────────────────────────────────────────────────────────────────────────
+// NEW HTF DETECTION
+//──────────────────────────────────────────────────────────────────────────────
+
+bool newHTF = ta.change(time(htf)) != 0
+
+//──────────────────────────────────────────────────────────────────────────────
+// CURRENT HTF STATE
+//──────────────────────────────────────────────────────────────────────────────
+
+var float htfOpen = na
+var float htfHigh = na
+var float htfLow  = na
+var float htfMid  = na
+
+var int htfOpenBar = na
+var int htfHighBar = na
+var int htfLowBar  = na
+
+//──────────────────────────────────────────────────────────────────────────────
+// INITIALIZE
+//──────────────────────────────────────────────────────────────────────────────
+
+if barstate.isfirst
+
+    htfOpen := open
+    htfHigh := high
+    htfLow := low
+
+    htfOpenBar := bar_index
+    htfHighBar := bar_index
+    htfLowBar := bar_index
+
+//──────────────────────────────────────────────────────────────────────────────
+// START NEW HTF
+//──────────────────────────────────────────────────────────────────────────────
+
+if newHTF
+
+    htfOpen := open
+    htfHigh := high
+    htfLow := low
+
+    htfOpenBar := bar_index
+    htfHighBar := bar_index
+    htfLowBar := bar_index
+
+//──────────────────────────────────────────────────────────────────────────────
+// UPDATE LIVE HIGH / LOW
+//──────────────────────────────────────────────────────────────────────────────
+
+if high > htfHigh
+
+    htfHigh := high
+    htfHighBar := bar_index
+
+if low < htfLow
+
+    htfLow := low
+    htfLowBar := bar_index
+
+//──────────────────────────────────────────────────────────────────────────────
+// MID LEVEL
+//──────────────────────────────────────────────────────────────────────────────
+
+htfMid := (htfHigh + htfLow) * 0.5
+
+//──────────────────────────────────────────────────────────────────────────────
+// BAR COUNTER
+//──────────────────────────────────────────────────────────────────────────────
+
+barsPerHTF =
+    int(math.round(
+        timeframe.in_seconds(htf) /
+        timeframe.in_seconds(timeframe.period)))
+
+var int htfBarCounter = 1
+
+if newHTF
+    htfBarCounter := 1
+else
+    htfBarCounter += 1
+
+//──────────────────────────────────────────────────────────────────────────────
+// CYCLE ENGINE
+//──────────────────────────────────────────────────────────────────────────────
+
+var int cPhase = 1
+
+if newHTF
+    cPhase := cPhase == 4 ? 1 : cPhase + 1
+
+//──────────────────────────────────────────────────────────────────────────────
+// READ ONLY VARIABLES
+// (gebruik deze overal in de indicator)
+//──────────────────────────────────────────────────────────────────────────────
+
+float HTF_OPEN = htfOpen
+float HTF_HIGH = htfHigh
+float HTF_LOW  = htfLow
+float HTF_MID  = htfMid
+
+int HTF_OPEN_BAR = htfOpenBar
+int HTF_HIGH_BAR = htfHighBar
+int HTF_LOW_BAR  = htfLowBar
+
+bool HTF_NEW = newHTF
+
+int HTF_BAR = htfBarCounter
+int HTF_PHASE = cPhase
