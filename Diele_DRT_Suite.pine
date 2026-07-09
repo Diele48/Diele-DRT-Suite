@@ -164,6 +164,10 @@ f_drawLabel(_label, _x, _price, _text, _color) =>
 // CRT ENGINE
 //=============================================================================
 
+//-----------------------------------------------------------------------------
+// CRT STATE
+//-----------------------------------------------------------------------------
+
 enum CRTState
     WaitingC1
     WaitingC2
@@ -179,27 +183,28 @@ var CRTState crtState = CRTState.WaitingC1
 var CRTDirection crtDirection = CRTDirection.None
 
 //-----------------------------------------------------------------------------
-// Reference Candle (C1)
+// REFERENCE CANDLE (C1)
 //-----------------------------------------------------------------------------
 
-var float c1Open  = na
-var float c1High  = na
-var float c1Low   = na
+var float c1Open = na
+var float c1High = na
+var float c1Low = na
 var float c1Close = na
 
 var int c1HighBar = na
-var int c1LowBar  = na
+var int c1LowBar = na
 
 //-----------------------------------------------------------------------------
-// Candidate Candle (C2)
+// VALIDATION CANDLE (C2)
 //-----------------------------------------------------------------------------
 
+var float c2Open = na
 var float c2High = na
 var float c2Low = na
 var float c2Close = na
 
 //-----------------------------------------------------------------------------
-// Active CRT
+// ACTIVE CRT
 //-----------------------------------------------------------------------------
 
 var float crHigh = na
@@ -209,7 +214,7 @@ var int crHighBar = na
 var int crLowBar = na
 
 //-----------------------------------------------------------------------------
-// Validation
+// VALIDATION FLAGS
 //-----------------------------------------------------------------------------
 
 var bool bullSweep = false
@@ -217,14 +222,13 @@ var bool bearSweep = false
 var bool closeInside = false
 
 //-----------------------------------------------------------------------------
-// Runtime
+// RUNTIME
 //-----------------------------------------------------------------------------
 
-var float currentClose = na
 var bool outsideCRT = false
 
 //-----------------------------------------------------------------------------
-// New HTF Candle
+// HIGHER TIMEFRAME
 //-----------------------------------------------------------------------------
 
 bool newHour = ta.change(time(htf)) != 0
@@ -232,78 +236,8 @@ bool newHour = ta.change(time(htf)) != 0
 // CRT HELPERS
 //=============================================================================
 
-f_storeC1() =>
-
-    c1Open := request.security(syminfo.tickerid, htf, open[1])
-    c1High := request.security(syminfo.tickerid, htf, high[1])
-    c1Low := request.security(syminfo.tickerid, htf, low[1])
-    c1Close := request.security(syminfo.tickerid, htf, close[1])
-
-    // Tijdelijk.
-    // Commit 9 krijgt de exacte 5m HighBar / LowBar.
-    c1HighBar := bar_index
-    c1LowBar := bar_index
-
-    bullSweep := false
-    bearSweep := false
-
-    crtDirection := CRTDirection.None
-
-
-
-f_activateCRT() =>
-
-    crHigh := c1High
-    crLow := c1Low
-
-    crHighBar := c1HighBar
-    crLowBar := c1LowBar
-
-    if bullSweep and bearSweep
-        crtDirection := CRTDirection.Both
-    else if bullSweep
-        crtDirection := CRTDirection.Bullish
-    else if bearSweep
-        crtDirection := CRTDirection.Bearish
-    else
-        crtDirection := CRTDirection.None
-
-    crtState := CRTState.Active
-
-
-
-f_validateC2() =>
-
-    c2High = request.security(syminfo.tickerid, htf, high[1])
-    c2Low = request.security(syminfo.tickerid, htf, low[1])
-    c2Close = request.security(syminfo.tickerid, htf, close[1])
-
-    bullSweep := c2Low < c1Low
-    bearSweep := c2High > c1High
-
-    closeInside = c2Close <= c1High and c2Close >= c1Low
-
-    if closeInside
-        f_activateCRT()
-    else
-        crtState := CRTState.WaitingC1
-
-
-
-f_resetCRT() =>
-
-    crHigh := na
-    crLow := na
-
-    crHighBar := na
-    crLowBar := na
-
-    bullSweep := false
-    bearSweep := false
-
-    crtDirection := CRTDirection.None
-
-    crtState := CRTState.WaitingC1
+// Intentionally left empty.
+// CRT logic is handled directly in the CRT STATE MACHINE.
 //=============================================================================
 // CRT STATE MACHINE
 //=============================================================================
@@ -318,7 +252,23 @@ if newHour
 
         CRTState.WaitingC1 =>
 
-            f_storeC1()
+            c1Open  := request.security(syminfo.tickerid, htf, open[1])
+            c1High  := request.security(syminfo.tickerid, htf, high[1])
+            c1Low   := request.security(syminfo.tickerid, htf, low[1])
+            c1Close := request.security(syminfo.tickerid, htf, close[1])
+
+            // Tijdelijk.
+            // In een latere commit vervangen we dit door de
+            // exacte 5m-bar waarop de High/Low ontstond.
+            c1HighBar := bar_index
+            c1LowBar  := bar_index
+
+            bullSweep := false
+            bearSweep := false
+            closeInside := false
+
+            crtDirection := CRTDirection.None
+
             crtState := CRTState.WaitingC2
 
         //------------------------------------------------------------
@@ -327,7 +277,38 @@ if newHour
 
         CRTState.WaitingC2 =>
 
-            f_validateC2()
+            c2Open  := request.security(syminfo.tickerid, htf, open[1])
+            c2High  := request.security(syminfo.tickerid, htf, high[1])
+            c2Low   := request.security(syminfo.tickerid, htf, low[1])
+            c2Close := request.security(syminfo.tickerid, htf, close[1])
+
+            bullSweep := c2Low < c1Low
+            bearSweep := c2High > c1High
+
+            closeInside := c2Close <= c1High and c2Close >= c1Low
+
+            if closeInside
+
+                crHigh := c1High
+                crLow  := c1Low
+
+                crHighBar := c1HighBar
+                crLowBar  := c1LowBar
+
+                if bullSweep and bearSweep
+                    crtDirection := CRTDirection.Both
+                else if bullSweep
+                    crtDirection := CRTDirection.Bullish
+                else if bearSweep
+                    crtDirection := CRTDirection.Bearish
+                else
+                    crtDirection := CRTDirection.None
+
+                crtState := CRTState.Active
+
+            else
+
+                crtState := CRTState.WaitingC1
 
         //------------------------------------------------------------
         // ACTIVE CRT
@@ -335,12 +316,25 @@ if newHour
 
         CRTState.Active =>
 
-            currentClose = request.security(syminfo.tickerid, htf, close)
+            currentClose := request.security(syminfo.tickerid, htf, close)
 
-            outsideCRT = currentClose > crHigh or currentClose < crLow
+            outsideCRT := currentClose > crHigh or currentClose < crLow
 
             if outsideCRT
-                f_resetCRT()
+
+                crHigh := na
+                crLow := na
+
+                crHighBar := na
+                crLowBar := na
+
+                bullSweep := false
+                bearSweep := false
+                closeInside := false
+
+                crtDirection := CRTDirection.None
+
+                crtState := CRTState.WaitingC1
 //=============================================================================
 // DRAWING ENGINE
 //=============================================================================
