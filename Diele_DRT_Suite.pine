@@ -134,8 +134,8 @@ var float c1High  = na
 var float c1Low   = na
 var float c1Close = na
 
-var int c1Bar = na
-
+var int c1HighBar = na
+var int c1LowBar  = na
 //-------------------------
 // Active CRT
 //-------------------------
@@ -163,44 +163,6 @@ newHour = ta.change(time(htf))
 // HOUR BUFFER
 //=============================================================================
 
-type HourCandle
-    float open
-    float high
-    float low
-    float close
-
-    int startBar
-    int highBar
-    int lowBar
-
-var HourCandle previousHour = HourCandle.new(na, na, na, na, na)
-var HourCandle currentHour  = HourCandle.new(na, na, na, na, na)
-
-newHour = ta.change(time(htf)) != 0
-
-var int currentHighBar = na
-var int currentLowBar = na
-
-if newHour
-
-    currentHighBar := bar_index
-    currentLowBar := bar_index
-
-    // Bewaar de zojuist gesloten HTF candle
-    previousHour := HourCandle.new(
-         request.security(syminfo.tickerid, htf, open[1]),
-         request.security(syminfo.tickerid, htf, high[1]),
-         request.security(syminfo.tickerid, htf, low[1]),
-         request.security(syminfo.tickerid, htf, close[1]),
-         bar_index)
-
-    // Start nieuwe HTF candle
-    currentHour := HourCandle.new(
-         request.security(syminfo.tickerid, htf, open),
-         request.security(syminfo.tickerid, htf, high),
-         request.security(syminfo.tickerid, htf, low),
-         request.security(syminfo.tickerid, htf, close),
-         bar_index)
 //=============================================================================
 // CRT STATE MACHINE
 //=============================================================================
@@ -220,7 +182,8 @@ if newHour
             c1Low   := request.security(syminfo.tickerid, htf, low[1])
             c1Close := request.security(syminfo.tickerid, htf, close[1])
 
-            c1Bar := bar_index
+            c1HighBar := bar_index
+            c1LowBar  := bar_index
 
             bullSweep := false
             bearSweep := false
@@ -256,8 +219,8 @@ if newHour
                 crHigh := c1High
                 crLow := c1Low
 
-                crHighBar := c1Bar
-                crLowBar := c1Bar
+               crHighBar := c1HighBar
+               crLowBar  := c1LowBar
 
                 if bullSweep
                     crtDirection := CRTDirection.Bullish
@@ -294,6 +257,57 @@ if newHour
 
                 crHighBar := na
                 crLowBar := na
+//=============================================================================
+// CRT ENGINE
+//=============================================================================
+
+enum CRTState
+    WaitingC1
+    WaitingC2
+    Active
+
+enum CRTDirection
+    None
+    Bullish
+    Bearish
+
+var CRTState crtState = CRTState.WaitingC1
+var CRTDirection crtDirection = CRTDirection.None
+
+//-----------------------------------------------------------------------------
+// C1 Reference Candle
+//-----------------------------------------------------------------------------
+
+var float c1Open  = na
+var float c1High  = na
+var float c1Low   = na
+var float c1Close = na
+
+var int c1HighBar = na
+var int c1LowBar  = na
+
+//-----------------------------------------------------------------------------
+// Active CRT
+//-----------------------------------------------------------------------------
+
+var float crHigh = na
+var float crLow  = na
+
+var int crHighBar = na
+var int crLowBar  = na
+
+//-----------------------------------------------------------------------------
+// Sweep Direction
+//-----------------------------------------------------------------------------
+
+var bool bullSweep = false
+var bool bearSweep = false
+
+//-----------------------------------------------------------------------------
+// New HTF Candle
+//-----------------------------------------------------------------------------
+
+bool newHour = ta.change(time(htf)) != 0
 
 //=============================================================================
 // DRAW HELPERS
