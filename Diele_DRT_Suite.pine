@@ -1,1 +1,107 @@
+//@version=5
+//=============================================================================
+//  Diele DRT Suite
+//-----------------------------------------------------------------------------
+//  Version : 1.0.0
+//  Build   : 001
+//
+//  Author  : Diele48
+//
+//  Roadmap
+//  --------
+//  [x] Framework
+//  [ ] HTF Engine
+//  [ ] Drawing Engine
+//  [ ] Dashboard
+//  [ ] Sessions
+//  [ ] Liquidity
+//  [ ] Structure
+//  [ ] Smart Money
+//  [ ] Entries
+//
+//=============================================================================
 
+indicator(
+     title = "Diele DRT Suite",
+     shorttitle = "DRT",
+     overlay = true,
+     max_lines_count = 500,
+     max_labels_count = 500,
+     max_boxes_count = 500)
+
+//=============================================================================
+// SETTINGS
+//=============================================================================
+
+groupGeneral = "General"
+
+htf = input.timeframe("60", "Higher Timeframe", group = groupGeneral)
+
+groupDisplay = "Display"
+
+showLevels     = input.bool(true, "HTF Levels", group = groupDisplay)
+showDashboard  = input.bool(true, "Dashboard", group = groupDisplay)
+showVerticals  = input.bool(true, "Vertical Lines", group = groupDisplay)
+showCounter    = input.bool(true, "Counter", group = groupDisplay)
+showCycle      = input.bool(true, "C1-C4", group = groupDisplay)
+
+groupStyle = "Style"
+
+extendLevels = input.bool(true, "Extend Levels", group = groupStyle)
+lineWidth = input.int(2, "Line Width", minval = 1, maxval = 4, group = groupStyle)
+
+groupColors = "Colors"
+
+clrHigh = input.color(color.lime, "High", group = groupColors)
+clrLow = input.color(color.red, "Low", group = groupColors)
+clrOpen = input.color(color.orange, "Open", group = groupColors)
+clrMid = input.color(color.aqua, "Mid", group = groupColors)
+
+//=============================================================================
+// GLOBAL OBJECTS
+//=============================================================================
+
+var line lineHigh = na
+var line lineLow = na
+var line lineOpen = na
+var line lineMid = na
+var line lineVertical = na
+
+var label lblDashboard = na
+var label lblCounter = na
+var label lblCycle = na
+
+//=============================================================================
+// HELPER FUNCTIONS
+//=============================================================================
+
+f_extend() =>
+    extendLevels ? extend.right : extend.none
+
+//=============================================================================
+// MODULES
+//=============================================================================
+
+//-----------------------------------------------------------------------------
+// HTF ENGINE
+//-----------------------------------------------------------------------------
+
+// (Commit #2)
+
+//-----------------------------------------------------------------------------
+// DRAWING ENGINE
+//-----------------------------------------------------------------------------
+
+// (Commit #3)
+
+//-----------------------------------------------------------------------------
+// DASHBOARD
+//-----------------------------------------------------------------------------
+
+// (Commit #4)
+
+//-----------------------------------------------------------------------------
+// KEEP INDICATOR VALID
+//-----------------------------------------------------------------------------
+
+plot(na)
