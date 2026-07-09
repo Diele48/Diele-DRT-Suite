@@ -109,6 +109,58 @@ var label lblOpen = na
 var label lblMid = na
 
 //=============================================================================
+// HELPER FUNCTIONS
+//=============================================================================
+
+f_drawLevel(_line, _x1, _price, _color, _width) =>
+
+    line l = _line
+
+    int x2 = _x1 + levelLength
+
+    if na(l)
+
+        l := line.new(
+             x1 = _x1,
+             y1 = _price,
+             x2 = x2,
+             y2 = _price,
+             color = _color,
+             width = _width)
+
+    else
+
+        line.set_xy1(l, _x1, _price)
+        line.set_xy2(l, x2, _price)
+
+        line.set_color(l, _color)
+        line.set_width(l, _width)
+
+    l
+
+
+f_drawLabel(_label, _x, _price, _text, _color) =>
+
+    label lb = _label
+
+    if na(lb)
+
+        lb := label.new(
+             x = _x + 3,
+             y = _price,
+             text = _text,
+             style = label.style_none,
+             textcolor = _color,
+             size = size.small)
+
+    else
+
+        label.set_xy(lb, _x + 3, _price)
+        label.set_text(lb, _text)
+        label.set_textcolor(lb, _color)
+
+    lb
+//=============================================================================
 // CRT ENGINE
 //=============================================================================
 
@@ -171,7 +223,7 @@ f_storeC1() =>
     c1Close := request.security(syminfo.tickerid, htf, close[1])
 
     // Tijdelijk.
-    // In Commit 7 vervangen we dit door de exacte 5m High/Low bar.
+    // Commit 8 krijgt de exacte 5m HighBar / LowBar.
     c1HighBar := bar_index
     c1LowBar  := bar_index
 
@@ -180,6 +232,8 @@ f_storeC1() =>
 
     crtDirection := CRTDirection.None
 
+
+//────────────────────────────────────
 
 f_activateCRT() =>
 
@@ -190,7 +244,7 @@ f_activateCRT() =>
     crLowBar  := c1LowBar
 
     if bullSweep and bearSweep
-        crtDirection := CRTDirection.None
+        crtDirection := CRTDirection.Both
     else if bullSweep
         crtDirection := CRTDirection.Bullish
     else if bearSweep
@@ -201,23 +255,18 @@ f_activateCRT() =>
     crtState := CRTState.Active
 
 
+//────────────────────────────────────
+
 f_validateC2() =>
 
-    float c2High =
-        request.security(syminfo.tickerid, htf, high[1])
-
-    float c2Low =
-        request.security(syminfo.tickerid, htf, low[1])
-
-    float c2Close =
-        request.security(syminfo.tickerid, htf, close[1])
+    float c2High  = request.security(syminfo.tickerid, htf, high[1])
+    float c2Low   = request.security(syminfo.tickerid, htf, low[1])
+    float c2Close = request.security(syminfo.tickerid, htf, close[1])
 
     bullSweep := c2Low < c1Low
     bearSweep := c2High > c1High
 
-    bool closeInside =
-        c2Close <= c1High and
-        c2Close >= c1Low
+    bool closeInside = c2Close <= c1High and c2Close >= c1Low
 
     if closeInside
         f_activateCRT()
@@ -225,13 +274,15 @@ f_validateC2() =>
         crtState := CRTState.WaitingC1
 
 
+//────────────────────────────────────
+
 f_resetCRT() =>
 
     crHigh := na
-    crLow := na
+    crLow  := na
 
     crHighBar := na
-    crLowBar := na
+    crLowBar  := na
 
     bullSweep := false
     bearSweep := false
@@ -272,11 +323,7 @@ if newHour
 
         CRTState.Active =>
 
-            float currentClose =
-                request.security(
-                    syminfo.tickerid,
-                    htf,
-                    close)
+       currentClose = request.security(syminfo.tickerid, htf, close)
 
             bool outsideCRT =
                 currentClose > crHigh or
@@ -289,7 +336,7 @@ if newHour
 // DRAWING ENGINE
 //=============================================================================
 
-if showLevels
+if showLevels and crtState == CRTState.Active
 
     //────────────────────────────
     // CR HIGH
@@ -297,19 +344,22 @@ if showLevels
 
     lineHigh := f_drawLevel(
          lineHigh,
-         htfHighBar,
-         htfHigh,
+         crHighBar,
+         crHigh,
          clrHigh,
          lineWidth)
 
     if showLabels
+
         lblHigh := f_drawLabel(
              lblHigh,
-             htfHighBar + levelLength,
-             htfHigh,
+             crHighBar + levelLength,
+             crHigh,
              "CR High",
              clrHigh)
+
     else
+
         if not na(lblHigh)
             label.delete(lblHigh)
             lblHigh := na
@@ -320,19 +370,22 @@ if showLevels
 
     lineLow := f_drawLevel(
          lineLow,
-         htfLowBar,
-         htfLow,
+         crLowBar,
+         crLow,
          clrLow,
          lineWidth)
 
     if showLabels
+
         lblLow := f_drawLabel(
              lblLow,
-             htfLowBar + levelLength,
-             htfLow,
+             crLowBar + levelLength,
+             crLow,
              "CR Low",
              clrLow)
+
     else
+
         if not na(lblLow)
             label.delete(lblLow)
             lblLow := na
@@ -345,16 +398,17 @@ if showLevels
 
         lineOpen := f_drawLevel(
              lineOpen,
-             htfOpenBar,
-             htfOpen,
+             c1HighBar,
+             c1Open,
              clrOpen,
              1)
 
         if showLabels
+
             lblOpen := f_drawLabel(
                  lblOpen,
-                 htfOpenBar + levelLength,
-                 htfOpen,
+                 c1HighBar + levelLength,
+                 c1Open,
                  "Open",
                  clrOpen)
 
@@ -374,18 +428,22 @@ if showLevels
 
     if showMid
 
+        float crMid =
+            (crHigh + crLow) * 0.5
+
         lineMid := f_drawLevel(
              lineMid,
-             htfOpenBar,
-             htfMid,
+             c1HighBar,
+             crMid,
              clrMid,
              1)
 
         if showLabels
+
             lblMid := f_drawLabel(
                  lblMid,
-                 htfOpenBar + levelLength,
-                 htfMid,
+                 c1HighBar + levelLength,
+                 crMid,
                  "Mid",
                  clrMid)
 
@@ -433,6 +491,77 @@ else
         label.delete(lblMid)
         lblMid := na
 
+//=============================================================================
+// DASHBOARD
+//=============================================================================
+
+if showDashboard
+
+    string crtStateText = ""
+
+    switch crtState
+
+        CRTState.WaitingC1 =>
+            crtStateText := "Waiting C1"
+
+        CRTState.WaitingC2 =>
+            crtStateText := "Waiting C2"
+
+        CRTState.Active =>
+            crtStateText := "ACTIVE"
+
+    string directionText = ""
+
+    switch crtDirection
+
+        CRTDirection.None =>
+            directionText := "-"
+
+        CRTDirection.Bullish =>
+            directionText := "Bullish"
+
+        CRTDirection.Bearish =>
+            directionText := "Bearish"
+
+        CRTDirection.Both =>
+            directionText := "Both"
+
+    string dashboardText =
+          "Diele DRT Suite\n\n" +
+          "CRT State : " + crtStateText + "\n" +
+          "Direction : " + directionText + "\n\n" +
+          "CR High : " + str.tostring(crHigh, format.mintick) + "\n" +
+          "CR Low  : " + str.tostring(crLow, format.mintick)
+
+    if na(lblDashboard)
+
+        lblDashboard := label.new(
+             bar_index + 2,
+             high,
+             dashboardText,
+             style = label.style_label_left,
+             textcolor = color.white,
+             color = color.new(color.black, 70),
+             size = size.small)
+
+    else
+
+        label.set_xy(
+             lblDashboard,
+             bar_index + 2,
+             high)
+
+        label.set_text(
+             lblDashboard,
+             dashboardText)
+
+else
+
+    if not na(lblDashboard)
+
+        label.delete(lblDashboard)
+
+        lblDashboard := na
 
 //=============================================================================
 // KEEP SCRIPT VALID
