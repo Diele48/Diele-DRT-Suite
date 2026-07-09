@@ -178,9 +178,9 @@ enum CRTDirection
 var CRTState crtState = CRTState.WaitingC1
 var CRTDirection crtDirection = CRTDirection.None
 
-//-------------------------
+//-----------------------------------------------------------------------------
 // Reference Candle (C1)
-//-------------------------
+//-----------------------------------------------------------------------------
 
 var float c1Open  = na
 var float c1High  = na
@@ -189,43 +189,60 @@ var float c1Close = na
 
 var int c1HighBar = na
 var int c1LowBar  = na
-//-------------------------
+
+//-----------------------------------------------------------------------------
+// Candidate Candle (C2)
+//-----------------------------------------------------------------------------
+
+var float c2High = na
+var float c2Low = na
+var float c2Close = na
+
+//-----------------------------------------------------------------------------
 // Active CRT
-//-------------------------
+//-----------------------------------------------------------------------------
 
 var float crHigh = na
-var float crLow  = na
+var float crLow = na
 
 var int crHighBar = na
-var int crLowBar  = na
+var int crLowBar = na
 
-//-------------------------
-// Sweep info
-//-------------------------
+//-----------------------------------------------------------------------------
+// Validation
+//-----------------------------------------------------------------------------
 
 var bool bullSweep = false
 var bool bearSweep = false
+var bool closeInside = false
 
-//-------------------------
-// New HTF candle
-//-------------------------
+//-----------------------------------------------------------------------------
+// Runtime
+//-----------------------------------------------------------------------------
 
-newHour = ta.change(time(htf))
+var float currentClose = na
+var bool outsideCRT = false
+
+//-----------------------------------------------------------------------------
+// New HTF Candle
+//-----------------------------------------------------------------------------
+
+bool newHour = ta.change(time(htf)) != 0
 //=============================================================================
 // CRT HELPERS
 //=============================================================================
 
 f_storeC1() =>
 
-    c1Open  := request.security(syminfo.tickerid, htf, open[1])
-    c1High  := request.security(syminfo.tickerid, htf, high[1])
-    c1Low   := request.security(syminfo.tickerid, htf, low[1])
+    c1Open := request.security(syminfo.tickerid, htf, open[1])
+    c1High := request.security(syminfo.tickerid, htf, high[1])
+    c1Low := request.security(syminfo.tickerid, htf, low[1])
     c1Close := request.security(syminfo.tickerid, htf, close[1])
 
     // Tijdelijk.
-    // Commit 8 krijgt de exacte 5m HighBar / LowBar.
+    // Commit 9 krijgt de exacte 5m HighBar / LowBar.
     c1HighBar := bar_index
-    c1LowBar  := bar_index
+    c1LowBar := bar_index
 
     bullSweep := false
     bearSweep := false
@@ -233,15 +250,14 @@ f_storeC1() =>
     crtDirection := CRTDirection.None
 
 
-//────────────────────────────────────
 
 f_activateCRT() =>
 
     crHigh := c1High
-    crLow  := c1Low
+    crLow := c1Low
 
     crHighBar := c1HighBar
-    crLowBar  := c1LowBar
+    crLowBar := c1LowBar
 
     if bullSweep and bearSweep
         crtDirection := CRTDirection.Both
@@ -255,18 +271,17 @@ f_activateCRT() =>
     crtState := CRTState.Active
 
 
-//────────────────────────────────────
 
 f_validateC2() =>
 
-    float c2High  = request.security(syminfo.tickerid, htf, high[1])
-    float c2Low   = request.security(syminfo.tickerid, htf, low[1])
-    float c2Close = request.security(syminfo.tickerid, htf, close[1])
+    c2High = request.security(syminfo.tickerid, htf, high[1])
+    c2Low = request.security(syminfo.tickerid, htf, low[1])
+    c2Close = request.security(syminfo.tickerid, htf, close[1])
 
     bullSweep := c2Low < c1Low
     bearSweep := c2High > c1High
 
-    bool closeInside = c2Close <= c1High and c2Close >= c1Low
+    closeInside = c2Close <= c1High and c2Close >= c1Low
 
     if closeInside
         f_activateCRT()
@@ -274,15 +289,14 @@ f_validateC2() =>
         crtState := CRTState.WaitingC1
 
 
-//────────────────────────────────────
 
 f_resetCRT() =>
 
     crHigh := na
-    crLow  := na
+    crLow := na
 
     crHighBar := na
-    crLowBar  := na
+    crLowBar := na
 
     bullSweep := false
     bearSweep := false
@@ -290,7 +304,6 @@ f_resetCRT() =>
     crtDirection := CRTDirection.None
 
     crtState := CRTState.WaitingC1
-
 //=============================================================================
 // CRT STATE MACHINE
 //=============================================================================
@@ -306,7 +319,6 @@ if newHour
         CRTState.WaitingC1 =>
 
             f_storeC1()
-
             crtState := CRTState.WaitingC2
 
         //------------------------------------------------------------
@@ -323,14 +335,11 @@ if newHour
 
         CRTState.Active =>
 
-       currentClose = request.security(syminfo.tickerid, htf, close)
+            currentClose = request.security(syminfo.tickerid, htf, close)
 
-            bool outsideCRT =
-                currentClose > crHigh or
-                currentClose < crLow
+            outsideCRT = currentClose > crHigh or currentClose < crLow
 
             if outsideCRT
-
                 f_resetCRT()
 //=============================================================================
 // DRAWING ENGINE
@@ -428,8 +437,7 @@ if showLevels and crtState == CRTState.Active
 
     if showMid
 
-        float crMid =
-            (crHigh + crLow) * 0.5
+        float crMid = (crHigh + crLow) * 0.5
 
         lineMid := f_drawLevel(
              lineMid,
@@ -497,72 +505,53 @@ else
 
 if showDashboard
 
-    string crtStateText = ""
+    if na(dashboard)
+
+        dashboard := table.new(
+             position.top_right,
+             2,
+             6,
+             bgcolor = color.new(color.black, 80),
+             border_width = 1)
+
+    string stateTxt = ""
 
     switch crtState
+        CRTState.WaitingC1 => stateTxt := "Waiting C1"
+        CRTState.WaitingC2 => stateTxt := "Waiting C2"
+        CRTState.Active    => stateTxt := "ACTIVE"
 
-        CRTState.WaitingC1 =>
-            crtStateText := "Waiting C1"
-
-        CRTState.WaitingC2 =>
-            crtStateText := "Waiting C2"
-
-        CRTState.Active =>
-            crtStateText := "ACTIVE"
-
-    string directionText = ""
+    string dirTxt = ""
 
     switch crtDirection
+        CRTDirection.None     => dirTxt := "-"
+        CRTDirection.Bullish  => dirTxt := "Bullish"
+        CRTDirection.Bearish  => dirTxt := "Bearish"
+        CRTDirection.Both     => dirTxt := "Both"
 
-        CRTDirection.None =>
-            directionText := "-"
+    table.cell(dashboard, 0, 0, "Diele DRT Suite", text_color=color.white)
+    table.cell(dashboard, 1, 0, "v1.1", text_color=color.orange)
 
-        CRTDirection.Bullish =>
-            directionText := "Bullish"
+    table.cell(dashboard, 0, 1, "CRT")
+    table.cell(dashboard, 1, 1, stateTxt)
 
-        CRTDirection.Bearish =>
-            directionText := "Bearish"
+    table.cell(dashboard, 0, 2, "Direction")
+    table.cell(dashboard, 1, 2, dirTxt)
 
-        CRTDirection.Both =>
-            directionText := "Both"
+    table.cell(dashboard, 0, 3, "CR High")
+    table.cell(dashboard, 1, 3, na(crHigh) ? "-" : str.tostring(crHigh, format.mintick))
 
-    string dashboardText =
-          "Diele DRT Suite\n\n" +
-          "CRT State : " + crtStateText + "\n" +
-          "Direction : " + directionText + "\n\n" +
-          "CR High : " + str.tostring(crHigh, format.mintick) + "\n" +
-          "CR Low  : " + str.tostring(crLow, format.mintick)
+    table.cell(dashboard, 0, 4, "CR Low")
+    table.cell(dashboard, 1, 4, na(crLow) ? "-" : str.tostring(crLow, format.mintick))
 
-    if na(lblDashboard)
-
-        lblDashboard := label.new(
-             bar_index + 2,
-             high,
-             dashboardText,
-             style = label.style_label_left,
-             textcolor = color.white,
-             color = color.new(color.black, 70),
-             size = size.small)
-
-    else
-
-        label.set_xy(
-             lblDashboard,
-             bar_index + 2,
-             high)
-
-        label.set_text(
-             lblDashboard,
-             dashboardText)
+    table.cell(dashboard, 0, 5, "HTF")
+    table.cell(dashboard, 1, 5, htf)
 
 else
 
-    if not na(lblDashboard)
+    if not na(dashboard)
 
-        label.delete(lblDashboard)
-
-        lblDashboard := na
-
+        table.clear(dashboard)
 //=============================================================================
 // KEEP SCRIPT VALID
 //=============================================================================
