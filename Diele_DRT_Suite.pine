@@ -48,7 +48,20 @@ showCycle      = input.bool(true, "C1-C4", group = groupDisplay)
 groupStyle = "Style"
 
 extendLevels = input.bool(true, "Extend Levels", group = groupStyle)
-lineWidth = input.int(2, "Line Width", minval = 1, maxval = 4, group = groupStyle)
+
+lineWidth = input.int(
+     2,
+     "Line Width",
+     minval = 1,
+     maxval = 4,
+     group = groupStyle)
+
+levelLength = input.int(
+     15,
+     "Level Length (bars)",
+     minval = 5,
+     maxval = 100,
+     group = groupStyle)
 
 groupColors = "Colors"
 
@@ -70,6 +83,10 @@ var line lineVertical = na
 var label lblDashboard = na
 var label lblCounter = na
 var label lblCycle = na
+var label lblHigh = na
+var label lblLow  = na
+var label lblOpen = na
+var label lblMid  = na
 
 //=============================================================================
 // HELPER FUNCTIONS
@@ -122,12 +139,12 @@ if newHTF
     htfLowBar := bar_index
 
 // Live update High
-if high > htfHigh
+if high >= htfHigh
     htfHigh := high
     htfHighBar := bar_index
 
 // Live update Low
-if low < htfLow
+if low <= htfLow
     htfLow := low
     htfLowBar := bar_index
 
@@ -151,7 +168,7 @@ var int cPhase = 1
 
 if newHTF
     cPhase := cPhase == 4 ? 1 : cPhase + 1
-
+var float htfClose = na
 //=============================================================================
 // DRAWING ENGINE
 //=============================================================================
@@ -173,7 +190,10 @@ if showLevels
              extend = f_extend())
     else
         line.set_xy1(lineHigh, htfHighBar, htfHigh)
-        line.set_xy2(lineHigh, bar_index, htfHigh)
+        line.set_xy2(
+     lineHigh,
+     htfHighBar + levelLength,
+     htfHigh)
 
     //=========================
     // LOW
@@ -190,8 +210,10 @@ if showLevels
              extend = f_extend())
     else
         line.set_xy1(lineLow, htfLowBar, htfLow)
-        line.set_xy2(lineLow, bar_index, htfLow)
-
+       line.set_xy2(
+     lineLow,
+     htfLowBar + levelLength,
+     htfLow)
     //=========================
     // OPEN
     //=========================
@@ -207,8 +229,10 @@ if showLevels
              extend = f_extend())
     else
         line.set_xy1(lineOpen, htfOpenBar, htfOpen)
-        line.set_xy2(lineOpen, bar_index, htfOpen)
-
+       line.set_xy2(
+     lineOpen,
+     htfOpenBar + levelLength,
+     htfOpen)
     //=========================
     // MID
     //=========================
@@ -225,7 +249,10 @@ if showLevels
              extend = f_extend())
     else
         line.set_xy1(lineMid, htfOpenBar, htfMid)
-        line.set_xy2(lineMid, bar_index, htfMid)
+      line.set_xy2(
+     lineMid,
+     htfOpenBar + levelLength,
+     htfMid)
 
 else
 
@@ -244,8 +271,97 @@ else
     if not na(lineMid)
         line.delete(lineMid)
         lineMid := na
+//=============================================================================
+// LEVEL LABELS
+//=============================================================================
 
-// (Commit #3)
+if showLevels
+
+    // HIGH
+    if na(lblHigh)
+        lblHigh := label.new(
+             htfHighBar + levelLength + 1,
+             htfHigh,
+             "crHigh",
+             style = label.style_none,
+             textcolor = clrHigh,
+             size = size.small)
+    else
+        label.set_xy(lblHigh, htfHighBar, htfHigh)
+        label.set_text(lblHigh, "H")
+
+    // LOW
+    if na(lblLow)
+        lblLow := label.new(
+             htfLowBar + levelLength + 1,
+             htfLow,
+             "crLow",
+             style = label.style_none,
+             textcolor = clrLow,
+             size = size.small)
+    else
+        label.set_xy(lblLow, htfLowBar, htfLow)
+        label.set_text(lblLow, "L")
+
+    // OPEN
+    if na(lblOpen)
+        lblOpen := label.new(
+             htfOpenBar + levelLength + 1,
+             htfOpen,
+             "O",
+             style = label.style_none,
+             textcolor = clrOpen,
+             size = size.small)
+    else
+        label.set_xy(lblOpen, htfOpenBar, htfOpen)
+        label.set_text(lblOpen, "O")
+
+    // MID
+    if na(lblMid)
+        lblMid := label.new(
+             htfOpenBar + levelLength + 1,
+             htfMid,
+             "M",
+             style = label.style_none,
+             textcolor = clrMid,
+             size = size.small)
+    else
+        label.set_xy(lblMid, htfOpenBar, htfMid)
+        label.set_text(lblMid, "M")
+
+else
+
+    if not na(lblHigh)
+        label.delete(lblHigh)
+        lblHigh := na
+
+    if not na(lblLow)
+        label.delete(lblLow)
+        lblLow := na
+
+    if not na(lblOpen)
+        label.delete(lblOpen)
+        lblOpen := na
+
+    if not na(lblMid)
+        label.delete(lblMid)
+        lblMid := na
+
+//=============================================================================
+// HTF SEPARATORS
+//=============================================================================
+
+if showVerticals and newHTF
+
+    line.new(
+         bar_index,
+         low - ta.atr(14) * 5,
+         bar_index,
+         high + ta.atr(14) * 5,
+         color = color.new(color.gray, 80),
+         style = line.style_dotted,
+         width = 1)
+
 
 //-----------------------------------------------------------------------------
 // DASHBOARD
