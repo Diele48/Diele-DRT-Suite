@@ -158,7 +158,82 @@ var bool bearSweep = false
 //-------------------------
 
 newHour = ta.change(time(htf))
+//=============================================================================
+// CRT HELPERS
+//=============================================================================
 
+f_storeC1() =>
+
+    c1Open  := request.security(syminfo.tickerid, htf, open[1])
+    c1High  := request.security(syminfo.tickerid, htf, high[1])
+    c1Low   := request.security(syminfo.tickerid, htf, low[1])
+    c1Close := request.security(syminfo.tickerid, htf, close[1])
+
+    // Tijdelijk anker.
+    // Later vervangen door de exacte 5m wick-bars.
+    c1HighBar := bar_index
+    c1LowBar  := bar_index
+
+    bullSweep := false
+    bearSweep := false
+
+    crtDirection := CRTDirection.None
+
+
+f_validateC2() =>
+
+    float c2High =
+         request.security(syminfo.tickerid, htf, high[1])
+
+    float c2Low =
+         request.security(syminfo.tickerid, htf, low[1])
+
+    float c2Close =
+         request.security(syminfo.tickerid, htf, close[1])
+
+    bullSweep := c2Low < c1Low
+    bearSweep := c2High > c1High
+
+    bool closeInside =
+         c2Close <= c1High and
+         c2Close >= c1Low
+
+    if closeInside
+
+        crHigh := c1High
+        crLow  := c1Low
+
+        crHighBar := c1HighBar
+        crLowBar  := c1LowBar
+
+        if bullSweep and not bearSweep
+            crtDirection := CRTDirection.Bullish
+        else if bearSweep and not bullSweep
+            crtDirection := CRTDirection.Bearish
+        else
+            crtDirection := CRTDirection.None
+
+        crtState := CRTState.Active
+
+    else
+
+        crtState := CRTState.WaitingC1
+
+
+f_resetCRT() =>
+
+    crHigh := na
+    crLow := na
+
+    crHighBar := na
+    crLowBar := na
+
+    bullSweep := false
+    bearSweep := false
+
+    crtDirection := CRTDirection.None
+
+    crtState := CRTState.WaitingC1
 //=============================================================================
 // HOUR BUFFER
 //=============================================================================
@@ -257,130 +332,6 @@ if newHour
 
                 crHighBar := na
                 crLowBar := na
-//=============================================================================
-// CRT ENGINE
-//=============================================================================
-
-enum CRTState
-    WaitingC1
-    WaitingC2
-    Active
-
-enum CRTDirection
-    None
-    Bullish
-    Bearish
-
-var CRTState crtState = CRTState.WaitingC1
-var CRTDirection crtDirection = CRTDirection.None
-
-//-----------------------------------------------------------------------------
-// C1 Reference Candle
-//-----------------------------------------------------------------------------
-
-var float c1Open  = na
-var float c1High  = na
-var float c1Low   = na
-var float c1Close = na
-
-var int c1HighBar = na
-var int c1LowBar  = na
-
-//-----------------------------------------------------------------------------
-// Active CRT
-//-----------------------------------------------------------------------------
-
-var float crHigh = na
-var float crLow  = na
-
-var int crHighBar = na
-var int crLowBar  = na
-
-//-----------------------------------------------------------------------------
-// Sweep Direction
-//-----------------------------------------------------------------------------
-
-var bool bullSweep = false
-var bool bearSweep = false
-
-//-----------------------------------------------------------------------------
-// New HTF Candle
-//-----------------------------------------------------------------------------
-
-bool newHour = ta.change(time(htf)) != 0
-
-//=============================================================================
-// DRAW HELPERS
-//=============================================================================
-
-f_drawLevel(_line, _x1, _price, _color, _width) =>
-
-    line l = _line
-
-    int x2 = _x1 + levelLength
-
-    if na(l)
-
-        l := line.new(
-             x1 = _x1,
-             y1 = _price,
-             x2 = x2,
-             y2 = _price,
-             color = _color,
-             width = _width)
-
-    else
-
-        line.set_xy1(
-             l,
-             _x1,
-             _price)
-
-        line.set_xy2(
-             l,
-             x2,
-             _price)
-
-        line.set_color(
-             l,
-             _color)
-
-        line.set_width(
-             l,
-             _width)
-
-    l
-
-f_drawLabel(_label, _x, _price, _text, _color) =>
-
-    label lb = _label
-
-    if na(lb)
-
-        lb := label.new(
-             x = _x + 2,
-             y = _price,
-             text = _text,
-             style = label.style_none,
-             textcolor = _color,
-             size = size.small)
-
-    else
-
-        label.set_xy(
-             lb,
-             _x + 2,
-             _price)
-
-        label.set_text(
-             lb,
-             _text)
-
-        label.set_textcolor(
-             lb,
-             _color)
-
-    lb
 
 //=============================================================================
 // DRAWING ENGINE
